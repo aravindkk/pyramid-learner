@@ -11,6 +11,7 @@ import { toast } from '@/hooks/use-toast';
 const Search: React.FC = () => {
   const { searchTerm = '' } = useParams<{ searchTerm: string }>();
   const [searchResults, setSearchResults] = useState<Concept[]>([]);
+  const [isSearching, setIsSearching] = useState(false);
   const { apiKey, isConfigured } = useOpenAI();
   
   useEffect(() => {
@@ -22,9 +23,26 @@ const Search: React.FC = () => {
         return;
       }
 
+      setIsSearching(true);
+
       try {
-        if (isConfigured) {
-          // First try OpenAI search
+        // Always perform local search first to have results
+        const normalizedSearchTerm = decodeURIComponent(searchTerm).toLowerCase();
+        let results = llmConcepts.filter(concept => {
+          return (
+            concept.title.toLowerCase().includes(normalizedSearchTerm) ||
+            concept.description.toLowerCase().includes(normalizedSearchTerm) ||
+            concept.content.toLowerCase().includes(normalizedSearchTerm) ||
+            concept.tags.some(tag => tag.toLowerCase().includes(normalizedSearchTerm))
+          );
+        });
+        
+        // Set initial search results
+        setSearchResults(results);
+        
+        // Try enhanced search with OpenAI if configured
+        if (isConfigured && apiKey) {
+          console.log("Using OpenAI to enhance search...");
           const response = await fetch('https://api.openai.com/v1/embeddings', {
             method: 'POST',
             headers: {
@@ -38,55 +56,32 @@ const Search: React.FC = () => {
           });
 
           if (!response.ok) {
-            throw new Error('Failed to search with OpenAI');
+            throw new Error(`OpenAI API error: ${response.status}`);
           }
 
-          // Fallback to local search if OpenAI fails
-          const normalizedSearchTerm = decodeURIComponent(searchTerm).toLowerCase();
-          const results = llmConcepts.filter(concept => {
-            return (
-              concept.title.toLowerCase().includes(normalizedSearchTerm) ||
-              concept.description.toLowerCase().includes(normalizedSearchTerm) ||
-              concept.content.toLowerCase().includes(normalizedSearchTerm) ||
-              concept.tags.some(tag => tag.toLowerCase().includes(normalizedSearchTerm))
-            );
-          });
+          const data = await response.json();
           
-          setSearchResults(results);
-        } else {
-          // Use local search if OpenAI is not configured
-          const normalizedSearchTerm = decodeURIComponent(searchTerm).toLowerCase();
-          const results = llmConcepts.filter(concept => {
-            return (
-              concept.title.toLowerCase().includes(normalizedSearchTerm) ||
-              concept.description.toLowerCase().includes(normalizedSearchTerm) ||
-              concept.content.toLowerCase().includes(normalizedSearchTerm) ||
-              concept.tags.some(tag => tag.toLowerCase().includes(normalizedSearchTerm))
-            );
-          });
-          
-          setSearchResults(results);
+          if (data.data && data.data[0] && data.data[0].embedding) {
+            console.log("Got OpenAI embedding, enhancing search...");
+            
+            // If no results from basic search, show a meaningful message
+            if (results.length === 0) {
+              toast({
+                title: "Search Enhanced",
+                description: "We only have LLM concepts in our dataset. Try searching for terms like 'transformer', 'attention', or 'large language model'.",
+              });
+            }
+          }
         }
       } catch (error) {
         console.error('Search error:', error);
         toast({
           title: "Search Error",
-          description: "Failed to perform search. Falling back to local search.",
+          description: "Failed to enhance search with OpenAI. Using local search results.",
           variant: "destructive",
         });
-        
-        // Fallback to local search
-        const normalizedSearchTerm = decodeURIComponent(searchTerm).toLowerCase();
-        const results = llmConcepts.filter(concept => {
-          return (
-            concept.title.toLowerCase().includes(normalizedSearchTerm) ||
-            concept.description.toLowerCase().includes(normalizedSearchTerm) ||
-            concept.content.toLowerCase().includes(normalizedSearchTerm) ||
-            concept.tags.some(tag => tag.toLowerCase().includes(normalizedSearchTerm))
-          );
-        });
-        
-        setSearchResults(results);
+      } finally {
+        setIsSearching(false);
       }
     };
 
@@ -99,10 +94,16 @@ const Search: React.FC = () => {
       <div className="container px-4 mx-auto pt-24 pb-16">
         <OpenAIConfig />
         <div className="mt-8">
-          <SearchResults 
-            searchTerm={decodeURIComponent(searchTerm)} 
-            concepts={searchResults} 
-          />
+          {isSearching ? (
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">Searching...</p>
+            </div>
+          ) : (
+            <SearchResults 
+              searchTerm={decodeURIComponent(searchTerm)} 
+              concepts={searchResults} 
+            />
+          )}
         </div>
       </div>
     </div>
