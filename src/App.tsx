@@ -20,7 +20,7 @@ const App = () => (
         <Routes>
           <Route path="/" element={<Index />} />
           <Route path="/concept/:conceptId" element={<Concept />} />
-          <Route path="/concept/search/:searchTerm" element={<Search />} />
+          <Route path="/search/:searchTerm" element={<Search />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </BrowserRouter>

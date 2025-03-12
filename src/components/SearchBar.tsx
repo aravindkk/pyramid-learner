@@ -24,13 +24,10 @@ const SearchBar: React.FC<SearchBarProps> = ({
       return;
     }
 
-    // Normalize the search term to create a valid URL
-    const normalizedTerm = searchTerm.trim().toLowerCase()
-      .replace(/\s+/g, '-')
-      .replace(/[^\w-]/g, '');
+    const normalizedTerm = encodeURIComponent(searchTerm.trim());
 
     if (normalizedTerm) {
-      navigate(`/concept/search/${encodeURIComponent(normalizedTerm)}`);
+      navigate(`/search/${normalizedTerm}`);
       setSearchTerm('');
     } else {
       toast({

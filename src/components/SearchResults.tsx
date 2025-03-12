@@ -21,13 +21,16 @@ const SearchResults: React.FC<SearchResultsProps> = ({ searchTerm, concepts }) =
         </p>
         <button
           onClick={() => navigate('/concept/llm')}
-          className="mt-6 px-4 py-2 bg-primary text-white rounded-lg hover:bg-primary/90 transition-colors"
+          className="mt-6 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors"
         >
           Browse LLM Concepts
         </button>
       </div>
     );
   }
+
+  // Sort concepts by level to ensure the pyramid displays correctly
+  const sortedConcepts = [...concepts].sort((a, b) => a.level - b.level);
 
   return (
     <div>
@@ -36,7 +39,7 @@ const SearchResults: React.FC<SearchResultsProps> = ({ searchTerm, concepts }) =
         <ConceptPyramid 
           maxLevels={4} 
           selectedConceptId={concepts[0]?.id}
-          filterConcepts={concepts}
+          filterConcepts={sortedConcepts}
         />
       </div>
     </div>
