@@ -3,6 +3,7 @@ import React, { useState, useEffect } from 'react';
 import { Link, useLocation } from 'react-router-dom';
 import { cn } from "@/lib/utils";
 import { BookOpen, Layers, Home } from "lucide-react";
+import SearchBar from './SearchBar';
 
 const Navbar: React.FC = () => {
   const [scrolled, setScrolled] = useState(false);
@@ -26,7 +27,7 @@ const Navbar: React.FC = () => {
           : "bg-transparent"
       )}
     >
-      <div className="max-w-7xl mx-auto flex items-center justify-between">
+      <div className="max-w-7xl mx-auto flex items-center justify-between flex-wrap gap-4">
         <Link 
           to="/" 
           className="flex items-center space-x-2 text-foreground hover:opacity-80 transition-opacity"
@@ -34,6 +35,10 @@ const Navbar: React.FC = () => {
           <Layers className="h-6 w-6" />
           <span className="font-semibold text-lg">PyramidLearner</span>
         </Link>
+
+        <div className="flex-1 max-w-xs mx-4 hidden md:block">
+          <SearchBar variant="navbar" />
+        </div>
 
         <div className="flex items-center space-x-8">
           <NavLink to="/" active={location.pathname === "/"}>
@@ -46,6 +51,11 @@ const Navbar: React.FC = () => {
             <span>Learn</span>
           </NavLink>
         </div>
+      </div>
+      
+      {/* Mobile search bar */}
+      <div className="mt-2 md:hidden px-4">
+        <SearchBar />
       </div>
     </nav>
   );

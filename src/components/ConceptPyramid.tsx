@@ -7,11 +7,13 @@ import { cn } from '@/lib/utils';
 interface ConceptPyramidProps {
   maxLevels?: number;
   selectedConceptId?: string;
+  filterConcepts?: Concept[];
 }
 
 const ConceptPyramid: React.FC<ConceptPyramidProps> = ({ 
   maxLevels = 4, 
-  selectedConceptId 
+  selectedConceptId,
+  filterConcepts
 }) => {
   const navigate = useNavigate();
   const pyramidRef = useRef<HTMLDivElement>(null);
@@ -45,8 +47,13 @@ const ConceptPyramid: React.FC<ConceptPyramidProps> = ({
     const levels = [];
 
     for (let level = 1; level <= maxLevels; level++) {
-      const concepts = getConceptsByLevel(level);
-      const totalNodes = concepts.length;
+      // Get concepts for this level, either from filter or all concepts
+      let concepts = filterConcepts 
+        ? filterConcepts.filter(c => c.level === level)
+        : getConceptsByLevel(level);
+      
+      // Skip empty levels
+      if (concepts.length === 0) continue;
       
       levels.push(
         <div
