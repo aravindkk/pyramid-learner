@@ -26,7 +26,7 @@ const Search: React.FC = () => {
       setIsSearching(true);
 
       try {
-        // Always perform local search first to have results
+        // Always perform local search first to have fallback results
         const normalizedSearchTerm = decodeURIComponent(searchTerm).toLowerCase();
         let results = llmConcepts.filter(concept => {
           return (
@@ -40,10 +40,11 @@ const Search: React.FC = () => {
         // Set initial search results
         setSearchResults(results);
         
-        // Try enhanced search with OpenAI if configured
         if (isConfigured && apiKey) {
-          console.log("Using OpenAI to enhance search...");
-          const response = await fetch('https://api.openai.com/v1/embeddings', {
+          console.log("Starting OpenAI enhanced search...");
+          
+          // Generate embeddings for the search term
+          const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
             method: 'POST',
             headers: {
               'Authorization': `Bearer ${apiKey}`,
@@ -51,33 +52,105 @@ const Search: React.FC = () => {
             },
             body: JSON.stringify({
               model: 'text-embedding-ada-002',
-              input: searchTerm,
+              input: normalizedSearchTerm,
             }),
           });
 
-          if (!response.ok) {
-            throw new Error(`OpenAI API error: ${response.status}`);
+          if (!embeddingResponse.ok) {
+            const errorData = await embeddingResponse.json();
+            throw new Error(`OpenAI API error: ${errorData.error?.message || embeddingResponse.status}`);
           }
 
-          const data = await response.json();
+          const embeddingData = await embeddingResponse.json();
+          console.log("Received embedding data:", embeddingData);
           
-          if (data.data && data.data[0] && data.data[0].embedding) {
-            console.log("Got OpenAI embedding, enhancing search...");
+          if (embeddingData.data && embeddingData.data[0] && embeddingData.data[0].embedding) {
+            console.log("Got search term embedding, asking OpenAI to find related concepts...");
             
-            // If no results from basic search, show a meaningful message
-            if (results.length === 0) {
-              toast({
-                title: "Search Enhanced",
-                description: "We only have LLM concepts in our dataset. Try searching for terms like 'transformer', 'attention', or 'large language model'.",
-              });
+            // Now use completions to find related concepts
+            const completionResponse = await fetch('https://api.openai.com/v1/chat/completions', {
+              method: 'POST',
+              headers: {
+                'Authorization': `Bearer ${apiKey}`,
+                'Content-Type': 'application/json',
+              },
+              body: JSON.stringify({
+                model: 'gpt-3.5-turbo',
+                messages: [
+                  {
+                    role: 'system',
+                    content: `You are a helpful assistant that identifies relevant LLM concepts.
+                    Below is a list of available LLM concepts: ${llmConcepts.map(c => c.title).join(', ')}.
+                    The user's search query is: "${normalizedSearchTerm}".
+                    Return ONLY the concept titles from the list that are most relevant to the search query.
+                    Format your response as a comma-separated list of concept titles, with no additional text.`
+                  },
+                  {
+                    role: 'user',
+                    content: `Find the most relevant concepts for: "${normalizedSearchTerm}"`
+                  }
+                ],
+                temperature: 0.3,
+                max_tokens: 150
+              }),
+            });
+
+            if (!completionResponse.ok) {
+              const errorData = await completionResponse.json();
+              throw new Error(`OpenAI completion error: ${errorData.error?.message || completionResponse.status}`);
+            }
+
+            const completionData = await completionResponse.json();
+            console.log("Received completion data:", completionData);
+            
+            if (completionData.choices && completionData.choices[0]?.message?.content) {
+              const content = completionData.choices[0].message.content.trim();
+              console.log("OpenAI suggested concepts:", content);
+              
+              // Parse the response to get concept titles
+              const suggestedConcepts = content.split(',')
+                .map(title => title.trim())
+                .filter(Boolean);
+              
+              if (suggestedConcepts.length > 0) {
+                // Filter concepts based on the suggestions
+                const aiResults = llmConcepts.filter(concept => 
+                  suggestedConcepts.some(title => 
+                    concept.title.toLowerCase().includes(title.toLowerCase()) || 
+                    title.toLowerCase().includes(concept.title.toLowerCase())
+                  )
+                );
+                
+                console.log("AI filtered results:", aiResults);
+                
+                if (aiResults.length > 0) {
+                  // Replace the basic search results with AI-enhanced ones
+                  setSearchResults(aiResults);
+                  toast({
+                    title: "AI-Enhanced Search Results",
+                    description: `Found ${aiResults.length} concepts related to "${searchTerm}"`,
+                  });
+                } else if (results.length === 0) {
+                  toast({
+                    title: "No Results Found",
+                    description: "We only have LLM concepts in our dataset. Try searching for terms like 'transformer', 'attention', or 'large language model'.",
+                  });
+                }
+              }
             }
           }
+        } else if (results.length === 0) {
+          // If no OpenAI config and no results from basic search
+          toast({
+            title: "No Results Found",
+            description: "We only have LLM concepts in our dataset. Consider adding your OpenAI API key for enhanced search.",
+          });
         }
-      } catch (error) {
+      } catch (error: any) {
         console.error('Search error:', error);
         toast({
           title: "Search Error",
-          description: "Failed to enhance search with OpenAI. Using local search results.",
+          description: error.message || "Failed to enhance search with OpenAI. Using local search results.",
           variant: "destructive",
         });
       } finally {
@@ -96,7 +169,7 @@ const Search: React.FC = () => {
         <div className="mt-8">
           {isSearching ? (
             <div className="text-center py-12">
-              <p className="text-muted-foreground">Searching...</p>
+              <p className="text-muted-foreground">Searching with OpenAI...</p>
             </div>
           ) : (
             <SearchResults 
