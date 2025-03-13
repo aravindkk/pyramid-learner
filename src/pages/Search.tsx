@@ -60,9 +60,8 @@ const Search: React.FC = () => {
                 messages: [
                   {
                     role: 'system',
-                    content: `You are a helpful assistant that identifies or creates relevant LLM concepts for the given search query.
+                    content: `You are a helpful assistant that identifies or creates relevant concepts for the given search query.
                     The user is searching for: "${normalizedSearchTerm}".
-                    If existing concepts match, return them. Otherwise, create new concepts related to LLMs.
                     
                     Format your response as a JSON array of objects with the following structure matching llmConcepts:
                     [
@@ -79,11 +78,11 @@ const Search: React.FC = () => {
                       }
                     ]
                     
-                    Focus on creating concepts related to Large Language Models. If the search is not related to LLMs, try to relate it to LLM concepts or return an empty array: []`
+                    Focus on creating concepts related to the given search query. If the results are not related to the given search query, return an empty array: []`
                   },
                   {
                     role: 'user',
-                    content: `Find or create LLM-related concepts for: "${normalizedSearchTerm}"`
+                    content: `Find or create related concepts for: "${normalizedSearchTerm}"`
                   }
                 ],
                 temperature: 0.7,
