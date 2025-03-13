@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { llmConcepts, Concept } from '@/data/llmConcepts';
@@ -61,19 +60,34 @@ const Search: React.FC = () => {
                 messages: [
                   {
                     role: 'system',
-                    content: `You are a helpful assistant that identifies relevant concepts for the given search string.
+                    content: `You are a helpful assistant that identifies or creates relevant LLM concepts for the given search query.
                     The user is searching for: "${normalizedSearchTerm}".
-                    Format your response as a JSON array of strings containing only the relevant concept titles.
-                    Example: ["Attention Mechanism", "Transformer Architecture"] for search string "LLM".
-                    If nothing is relevant, return an empty array: []`
+                    If existing concepts match, return them. Otherwise, create new concepts related to LLMs.
+                    
+                    Format your response as a JSON array of objects with the following structure matching llmConcepts:
+                    [
+                      {
+                        "id": "unique-id",
+                        "title": "Concept Title",
+                        "description": "Brief description of the concept",
+                        "level": 1-4 (1 being most fundamental),
+                        "position": 1-10,
+                        "childrenIds": [],
+                        "parentIds": [],
+                        "content": "Detailed explanation of the concept",
+                        "tags": ["Tag1", "Tag2"]
+                      }
+                    ]
+                    
+                    Focus on creating concepts related to Large Language Models. If the search is not related to LLMs, try to relate it to LLM concepts or return an empty array: []`
                   },
                   {
                     role: 'user',
-                    content: `Find the most relevant concepts for: "${normalizedSearchTerm}"`
+                    content: `Find or create LLM-related concepts for: "${normalizedSearchTerm}"`
                   }
                 ],
-                temperature: 0.5,
-                max_tokens: 150
+                temperature: 0.7,
+                max_tokens: 500
               }),
             });
 
@@ -90,59 +104,58 @@ const Search: React.FC = () => {
               const content = completionData.choices[0].message.content.trim();
               console.log("OpenAI suggested concepts:", content);
               
-              // Parse the response from OpenAI
-              let suggestedConcepts: string[] = [];
+              let aiConcepts: Concept[] = [];
               try {
-                // Try to parse as JSON array first
+                // Try to parse the JSON response
                 if (content.startsWith('[') && content.endsWith(']')) {
-                  suggestedConcepts = JSON.parse(content);
+                  // Extract JSON array even if it's embedded in other text
+                  const jsonStart = content.indexOf('[');
+                  const jsonEnd = content.lastIndexOf(']') + 1;
+                  const jsonContent = content.slice(jsonStart, jsonEnd);
+                  
+                  aiConcepts = JSON.parse(jsonContent);
+                  
+                  // Validate each concept has required fields
+                  aiConcepts = aiConcepts.filter(concept => 
+                    concept.id && concept.title && concept.description && 
+                    typeof concept.level === 'number' && 
+                    typeof concept.position === 'number'
+                  );
+                  
+                  console.log("Parsed AI concepts:", aiConcepts);
+                  
+                  if (aiConcepts.length > 0) {
+                    // Use AI generated concepts as search results
+                    setSearchResults(aiConcepts);
+                    toast({
+                      title: "AI-Enhanced Search Results",
+                      description: `Found ${aiConcepts.length} LLM concepts related to "${searchTerm}"`,
+                    });
+                  } else if (results.length === 0) {
+                    toast({
+                      title: "No Results Found",
+                      description: "No LLM concepts matched your search term. Try a different term.",
+                      variant: "destructive",
+                    });
+                  }
                 } else {
-                  // Fall back to parsing as comma-separated list
-                  suggestedConcepts = content.split(',').map(title => title.trim().replace(/['"]/g, '')).filter(Boolean);
+                  throw new Error("Response not in expected JSON format");
                 }
               } catch (e) {
                 console.error("Failed to parse OpenAI response:", e);
-                // Fall back to comma-separated parsing
-                suggestedConcepts = content.split(',').map(title => title.trim().replace(/['"]/g, '')).filter(Boolean);
-              }
-              
-              console.log("Parsed suggestions:", suggestedConcepts);
-              
-              if (suggestedConcepts.length > 0) {
-                // Find matching concepts with more flexible matching
-                const aiResults = llmConcepts.filter(concept => 
-                  suggestedConcepts.some(title => {
-                    const normalizedTitle = title.toLowerCase().replace(/["']/g, '');
-                    const normalizedConceptTitle = concept.title.toLowerCase();
-                    return normalizedConceptTitle.includes(normalizedTitle) || 
-                           normalizedTitle.includes(normalizedConceptTitle);
-                  })
-                );
-                
-                console.log("AI filtered results:", aiResults);
-                
-                if (aiResults.length > 0) {
-                  // Only update if we got results
-                  setSearchResults(aiResults);
+                // If parsing fails but we have local results, keep them
+                if (results.length > 0) {
                   toast({
-                    title: "AI-Enhanced Search Results",
-                    description: `Found ${aiResults.length} concepts that might relate to "${searchTerm}"`,
+                    title: "Using Basic Search Results",
+                    description: `Found ${results.length} concepts that might relate to "${searchTerm}"`,
                   });
-                } else if (results.length === 0) {
-                  // If no AI results and no basic results
+                } else {
                   toast({
                     title: "No Results Found",
-                    description: "No LLM concepts matched your search term. Try a different term.",
+                    description: "We couldn't find LLM concepts matching your search. Try a different term.",
                     variant: "destructive",
                   });
                 }
-              } else if (results.length === 0) {
-                // If OpenAI didn't suggest any concepts and basic search found nothing
-                toast({
-                  title: "No Results Found",
-                  description: "Try searching for LLM-related terms like 'transformer', 'attention', or 'fine-tuning'.",
-                  variant: "destructive",
-                });
               }
             }
           } catch (apiError: any) {
