@@ -1,4 +1,3 @@
-
 import React, { useEffect, useState } from 'react';
 import { useParams } from 'react-router-dom';
 import { llmConcepts, Concept } from '@/data/llmConcepts';
@@ -12,6 +11,7 @@ const Search: React.FC = () => {
   const { searchTerm = '' } = useParams<{ searchTerm: string }>();
   const [searchResults, setSearchResults] = useState<Concept[]>([]);
   const [isSearching, setIsSearching] = useState(false);
+  const [searchStatus, setSearchStatus] = useState('');
   const { apiKey, isConfigured } = useOpenAI();
   
   useEffect(() => {
@@ -24,10 +24,13 @@ const Search: React.FC = () => {
       }
 
       setIsSearching(true);
+      setSearchStatus('Starting search...');
 
       try {
         // Always perform local search first to have fallback results
         const normalizedSearchTerm = decodeURIComponent(searchTerm).toLowerCase();
+        console.log(`Searching for: "${normalizedSearchTerm}"`);
+        
         let results = llmConcepts.filter(concept => {
           return (
             concept.title.toLowerCase().includes(normalizedSearchTerm) ||
@@ -39,35 +42,15 @@ const Search: React.FC = () => {
         
         // Set initial search results
         setSearchResults(results);
+        console.log(`Found ${results.length} local results`);
         
         if (isConfigured && apiKey) {
+          setSearchStatus('Enhancing search with OpenAI...');
           console.log("Starting OpenAI enhanced search...");
           
-          // Generate embeddings for the search term
-          const embeddingResponse = await fetch('https://api.openai.com/v1/embeddings', {
-            method: 'POST',
-            headers: {
-              'Authorization': `Bearer ${apiKey}`,
-              'Content-Type': 'application/json',
-            },
-            body: JSON.stringify({
-              model: 'text-embedding-ada-002',
-              input: normalizedSearchTerm,
-            }),
-          });
-
-          if (!embeddingResponse.ok) {
-            const errorData = await embeddingResponse.json();
-            throw new Error(`OpenAI API error: ${errorData.error?.message || embeddingResponse.status}`);
-          }
-
-          const embeddingData = await embeddingResponse.json();
-          console.log("Received embedding data:", embeddingData);
-          
-          if (embeddingData.data && embeddingData.data[0] && embeddingData.data[0].embedding) {
-            console.log("Got search term embedding, asking OpenAI to find related concepts...");
-            
-            // Now use completions to find related concepts
+          try {
+            // Use GPT-3.5-turbo directly for semantic search without embeddings
+            // This is simpler and more effective for this use case
             const completionResponse = await fetch('https://api.openai.com/v1/chat/completions', {
               method: 'POST',
               headers: {
@@ -81,9 +64,10 @@ const Search: React.FC = () => {
                     role: 'system',
                     content: `You are a helpful assistant that identifies relevant LLM concepts.
                     Below is a list of available LLM concepts: ${llmConcepts.map(c => c.title).join(', ')}.
-                    The user's search query is: "${normalizedSearchTerm}".
+                    The user is searching for: "${normalizedSearchTerm}".
                     Return ONLY the concept titles from the list that are most relevant to the search query.
-                    Format your response as a comma-separated list of concept titles, with no additional text.`
+                    Format your response as a JSON array of strings containing only the relevant concept titles.
+                    Example: ["Attention Mechanism", "Transformer Architecture"]`
                   },
                   {
                     role: 'user',
@@ -97,28 +81,43 @@ const Search: React.FC = () => {
 
             if (!completionResponse.ok) {
               const errorData = await completionResponse.json();
-              throw new Error(`OpenAI completion error: ${errorData.error?.message || completionResponse.status}`);
+              throw new Error(`OpenAI API error: ${errorData.error?.message || completionResponse.statusText}`);
             }
 
             const completionData = await completionResponse.json();
-            console.log("Received completion data:", completionData);
+            console.log("OpenAI response:", completionData);
             
             if (completionData.choices && completionData.choices[0]?.message?.content) {
               const content = completionData.choices[0].message.content.trim();
               console.log("OpenAI suggested concepts:", content);
               
-              // Parse the response to get concept titles
-              const suggestedConcepts = content.split(',')
-                .map(title => title.trim())
-                .filter(Boolean);
+              // Try to parse as JSON array first
+              let suggestedConcepts = [];
+              try {
+                // The response might be a JSON array or just a comma-separated list
+                if (content.startsWith('[') && content.endsWith(']')) {
+                  suggestedConcepts = JSON.parse(content);
+                } else {
+                  // Fall back to parsing as comma-separated list
+                  suggestedConcepts = content.split(',').map(title => title.trim()).filter(Boolean);
+                }
+              } catch (e) {
+                console.error("Failed to parse OpenAI response as JSON:", e);
+                // Fall back to comma-separated parsing if JSON parsing fails
+                suggestedConcepts = content.split(',').map(title => title.trim()).filter(Boolean);
+              }
+              
+              console.log("Parsed suggestions:", suggestedConcepts);
               
               if (suggestedConcepts.length > 0) {
                 // Filter concepts based on the suggestions
                 const aiResults = llmConcepts.filter(concept => 
-                  suggestedConcepts.some(title => 
-                    concept.title.toLowerCase().includes(title.toLowerCase()) || 
-                    title.toLowerCase().includes(concept.title.toLowerCase())
-                  )
+                  suggestedConcepts.some(title => {
+                    const normalizedTitle = title.toLowerCase().replace(/["']/g, '');
+                    const normalizedConceptTitle = concept.title.toLowerCase();
+                    return normalizedConceptTitle.includes(normalizedTitle) || 
+                           normalizedTitle.includes(normalizedConceptTitle);
+                  })
                 );
                 
                 console.log("AI filtered results:", aiResults);
@@ -133,10 +132,33 @@ const Search: React.FC = () => {
                 } else if (results.length === 0) {
                   toast({
                     title: "No Results Found",
-                    description: "We only have LLM concepts in our dataset. Try searching for terms like 'transformer', 'attention', or 'large language model'.",
+                    description: "We could not find relevant LLM concepts for your search term.",
+                  });
+                }
+              } else {
+                console.log("No suggested concepts from OpenAI");
+                if (results.length === 0) {
+                  toast({
+                    title: "No Results Found",
+                    description: "Try searching for LLM-related terms like 'transformer', 'attention', or 'fine-tuning'.",
                   });
                 }
               }
+            }
+          } catch (apiError: any) {
+            console.error('OpenAI API error:', apiError);
+            toast({
+              title: "OpenAI Search Error",
+              description: apiError.message || "Failed to enhance search with OpenAI.",
+              variant: "destructive",
+            });
+            
+            // Keep the local search results
+            if (results.length === 0) {
+              toast({
+                title: "No Results Found",
+                description: "Try searching for LLM-related terms.",
+              });
             }
           }
         } else if (results.length === 0) {
@@ -150,11 +172,12 @@ const Search: React.FC = () => {
         console.error('Search error:', error);
         toast({
           title: "Search Error",
-          description: error.message || "Failed to enhance search with OpenAI. Using local search results.",
+          description: error.message || "Failed to perform search. Please try again.",
           variant: "destructive",
         });
       } finally {
         setIsSearching(false);
+        setSearchStatus('');
       }
     };
 
@@ -169,7 +192,11 @@ const Search: React.FC = () => {
         <div className="mt-8">
           {isSearching ? (
             <div className="text-center py-12">
-              <p className="text-muted-foreground">Searching with OpenAI...</p>
+              <div className="animate-pulse mb-4">
+                <div className="h-4 bg-primary/20 rounded w-3/4 mx-auto mb-2"></div>
+                <div className="h-4 bg-primary/20 rounded w-1/2 mx-auto"></div>
+              </div>
+              <p className="text-muted-foreground">{searchStatus || 'Searching...'}</p>
             </div>
           ) : (
             <SearchResults 

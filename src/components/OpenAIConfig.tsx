@@ -4,6 +4,7 @@ import { useOpenAI } from '@/hooks/useOpenAI';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { toast } from '@/hooks/use-toast';
+import { AlertCircle, CheckCircle } from 'lucide-react';
 
 const OpenAIConfig = () => {
   const { isConfigured, configureAPI, clearAPI, apiKey } = useOpenAI();
@@ -13,6 +14,7 @@ const OpenAIConfig = () => {
   const validateApiKey = async (key: string) => {
     setIsValidating(true);
     try {
+      console.log("Validating OpenAI API key...");
       const response = await fetch('https://api.openai.com/v1/models', {
         headers: {
           'Authorization': `Bearer ${key}`,
@@ -21,12 +23,14 @@ const OpenAIConfig = () => {
       });
       
       if (response.ok) {
+        console.log("API key validation successful");
         return true;
       } else {
         const data = await response.json();
+        console.error("API key validation failed:", data);
         throw new Error(data.error?.message || 'API key validation failed');
       }
-    } catch (error) {
+    } catch (error: any) {
       console.error('API key validation error:', error);
       return false;
     } finally {
@@ -55,12 +59,14 @@ const OpenAIConfig = () => {
       toast({
         title: "API Key Configured",
         description: "Your OpenAI API key has been validated and saved.",
+        icon: <CheckCircle className="h-5 w-5 text-green-500" />,
       });
     } else {
       toast({
         title: "Invalid API Key",
         description: "The API key could not be validated. Please check your key and try again.",
         variant: "destructive",
+        icon: <AlertCircle className="h-5 w-5" />,
       });
     }
     setIsValidating(false);
