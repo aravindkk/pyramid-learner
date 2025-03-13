@@ -63,7 +63,7 @@ const Search: React.FC = () => {
                     content: `You are a helpful assistant that identifies or creates relevant concepts for the given search query.
                     The user is searching for: "${normalizedSearchTerm}".
                     
-                    Format your response as a JSON array of 9 objects with the following structure:
+                    Format your response as a JSON array of 5 objects with the following structure:
                     [
                       {
                         "id": "unique-id",
