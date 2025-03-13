@@ -59,14 +59,12 @@ const OpenAIConfig = () => {
       toast({
         title: "API Key Configured",
         description: "Your OpenAI API key has been validated and saved.",
-        icon: <CheckCircle className="h-5 w-5 text-green-500" />,
       });
     } else {
       toast({
         title: "Invalid API Key",
         description: "The API key could not be validated. Please check your key and try again.",
         variant: "destructive",
-        icon: <AlertCircle className="h-5 w-5" />,
       });
     }
     setIsValidating(false);
