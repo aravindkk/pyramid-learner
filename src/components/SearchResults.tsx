@@ -53,15 +53,14 @@ const SearchResults: React.FC<SearchResultsProps> = ({ searchTerm, concepts }) =
         </p>
       )}
       
-      {concepts.length >= 3 && (
-        <div className="mb-8">
-          <ConceptPyramid 
-            maxLevels={4} 
-            selectedConceptId={concepts[0]?.id}
-            filterConcepts={sortedConcepts}
-          />
-        </div>
-      )}
+      {/* Always show the pyramid for search results */}
+      <div className="mb-8">
+        <ConceptPyramid 
+          maxLevels={4} 
+          selectedConceptId={null}
+          filterConcepts={sortedConcepts}
+        />
+      </div>
       
       <div className="space-y-4 mt-6">
         <h3 className="text-lg font-medium">Found {concepts.length} concept(s):</h3>
