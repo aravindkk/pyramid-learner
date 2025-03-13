@@ -61,8 +61,7 @@ const Search: React.FC = () => {
                 messages: [
                   {
                     role: 'system',
-                    content: `You are a helpful assistant that identifies relevant LLM concepts.
-                    Below is a list of available LLM concepts: ${llmConcepts.map(c => c.title).join(', ')}.
+                    content: `You are a helpful assistant that identifies relevant concepts for the given search string.
                     The user is searching for: "${normalizedSearchTerm}".
                     Return ONLY the concept titles from the list that are most relevant to the search query, even if there's only a weak connection.
                     For non-LLM terms, try to find any remotely relevant LLM concepts.
