@@ -63,10 +63,8 @@ const Search: React.FC = () => {
                     role: 'system',
                     content: `You are a helpful assistant that identifies relevant concepts for the given search string.
                     The user is searching for: "${normalizedSearchTerm}".
-                    Return ONLY the concept titles from the list that are most relevant to the search query, even if there's only a weak connection.
-                    For non-LLM terms, try to find any remotely relevant LLM concepts.
                     Format your response as a JSON array of strings containing only the relevant concept titles.
-                    Example: ["Attention Mechanism", "Transformer Architecture"]
+                    Example: ["Attention Mechanism", "Transformer Architecture"] for search string "LLM".
                     If nothing is relevant, return an empty array: []`
                   },
                   {
